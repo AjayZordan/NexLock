@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from scanner import scan_dependencies
 from severity import get_highest_severity
 from alerts import send_alerts_for_findings
+from database import save_scan_result
 
 app = Flask(__name__)
 
@@ -22,7 +23,7 @@ def parse_package_json(file_path):
     return all_deps
 
 
-def run_full_scan(package_json_path):
+def run_full_scan(package_json_path, source="manual"):
     deps = parse_package_json(package_json_path)
     print(f"Parsed {len(deps)} dependencies. Scanning each against OSV.dev...")
 
@@ -30,6 +31,8 @@ def run_full_scan(package_json_path):
 
     for finding in findings:
         finding["severity"] = get_highest_severity(finding["vulnerabilities"])
+
+    save_scan_result(findings, source=source)
 
     if findings:
         print(f"Found vulnerabilities in {len(findings)} package(s). Sending Slack alerts...")
@@ -47,16 +50,11 @@ def home():
 
 @app.route("/webhook/github", methods=["POST"])
 def github_webhook():
-    """
-    Receives GitHub push webhook events.
-    For now, it just triggers a scan on our own local web/package.json
-    (later this will pull the actual pushed repo's package.json).
-    """
     payload = request.json
     print("Received GitHub webhook event")
 
     try:
-        findings = run_full_scan("../web/package.json")
+        findings = run_full_scan("../web/package.json", source="github_webhook")
         return jsonify({
             "status": "scan complete",
             "vulnerabilities_found": len(findings)
@@ -68,9 +66,8 @@ def github_webhook():
 
 @app.route("/scan", methods=["GET"])
 def manual_scan():
-    """Manually trigger a scan by visiting this URL in a browser."""
     try:
-        findings = run_full_scan("../web/package.json")
+        findings = run_full_scan("../web/package.json", source="manual")
         return jsonify({
             "status": "scan complete",
             "vulnerabilities_found": len(findings)
