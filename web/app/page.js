@@ -1,65 +1,155 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+
+const severityColors = {
+  CRITICAL: "var(--critical)",
+  HIGH: "var(--high)",
+  MEDIUM: "var(--medium)",
+  LOW: "var(--low)",
+  UNKNOWN: "var(--text-muted)",
+};
+
+function formatTime(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function Home() {
+  const [scans, setScans] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/scans")
+      .then((res) => res.json())
+      .then((data) => {
+        setScans(data.scans || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const totalVulns = scans.reduce((sum, s) => sum + s.totalVulnerabilitiesFound, 0);
+  const totalScans = scans.length;
+  const uniquePackages = new Set(
+    scans.flatMap((s) => s.findings.map((f) => f.package))
+  ).size;
+  const lastScan = scans[0];
+
+  const severityCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+  scans.forEach((s) =>
+    s.findings.forEach((f) => {
+      if (severityCounts[f.severity] !== undefined) {
+        severityCounts[f.severity]++;
+      }
+    })
+  );
+  const maxSeverityCount = Math.max(...Object.values(severityCounts), 1);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="page">
+      <div className="topbar">
+        <div className="logo">
+          NEX<span>LOCK</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="statusPill">
+          <span className="statusDot" />
+          MONITORING
         </div>
-      </main>
+      </div>
+
+      <div className="hero">
+        <div className="radarSweep" />
+        <div className="heroEyebrow">Total vulnerabilities detected</div>
+        <div className={`heroNumber ${totalVulns === 0 ? "clean" : "hasIssues"}`}>
+          {loading ? "—" : totalVulns}
+        </div>
+        <div className="heroLabel">
+          across {totalScans} scan{totalScans !== 1 ? "s" : ""} · {uniquePackages} package
+          {uniquePackages !== 1 ? "s" : ""} tracked
+        </div>
+      </div>
+
+      <div className="statsRow">
+        <div className="statCard">
+          <div className="statValue">{totalScans}</div>
+          <div className="statLabel">Total scans run</div>
+        </div>
+        <div className="statCard">
+          <div className="statValue">{uniquePackages}</div>
+          <div className="statLabel">Packages tracked</div>
+        </div>
+        <div className="statCard">
+          <div className="statValue" style={{ color: "var(--critical)" }}>
+            {severityCounts.CRITICAL + severityCounts.HIGH}
+          </div>
+          <div className="statLabel">Critical + High findings</div>
+        </div>
+        <div className="statCard">
+          <div className="statValue" style={{ fontSize: "16px" }}>
+            {lastScan ? formatTime(lastScan.timestamp) : "—"}
+          </div>
+          <div className="statLabel">Last scan</div>
+        </div>
+      </div>
+
+      <div className="grid">
+        <div className="panel">
+          <div className="panelTitle">Severity Breakdown</div>
+          {Object.entries(severityCounts).map(([label, count]) => (
+            <div className="severityRow" key={label}>
+              <div className="severityLabel">{label}</div>
+              <div className="severityBarTrack">
+                <div
+                  className="severityBarFill"
+                  style={{
+                    width: `${(count / maxSeverityCount) * 100}%`,
+                    background: severityColors[label],
+                  }}
+                />
+              </div>
+              <div className="severityCount">{count}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="panel">
+          <div className="panelTitle">Scan History</div>
+          {loading && <div className="emptyState">Loading scan history…</div>}
+          {!loading && scans.length === 0 && (
+            <div className="emptyState">No scans yet. Run a scan to see results here.</div>
+          )}
+          {!loading &&
+            scans.map((scan) => (
+              <div className="scanItem" key={scan.id}>
+                <div className="scanItemTop">
+                  <span className="scanTime">{formatTime(scan.timestamp)}</span>
+                  <span className="scanSource">{scan.source}</span>
+                </div>
+                {scan.findings.length === 0 ? (
+                  <span className="findingBadge" style={{ color: "var(--low)" }}>
+                    ✓ Clean
+                  </span>
+                ) : (
+                  scan.findings.map((f, i) => (
+                    <span
+                      className="findingBadge"
+                      key={i}
+                      style={{ color: severityColors[f.severity] }}
+                    >
+                      {f.package}@{f.version} · {f.severity}
+                    </span>
+                  ))
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }
