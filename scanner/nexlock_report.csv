@@ -1,0 +1,4 @@
+scan_date,source,package,version,severity,vuln_count
+2026-07-07 08:54:22.433000,manual,N/A,N/A,CLEAN,0
+2026-07-07 08:50:08.002000,test,express,4.17.1,LOW,2
+2026-07-07 08:50:08.002000,test,lodash,4.17.15,HIGH,6
