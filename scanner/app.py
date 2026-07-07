@@ -1,13 +1,10 @@
 import json
 import os
 from scanner import scan_dependencies
+from severity import get_highest_severity
 
 
 def parse_package_json(file_path):
-    """
-    Reads a package.json file and returns a combined dict of
-    dependencies + devDependencies.
-    """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Could not find {file_path}")
 
@@ -22,9 +19,6 @@ def parse_package_json(file_path):
 
 
 def run_full_scan(package_json_path):
-    """
-    Parses a package.json and scans every dependency for known CVEs.
-    """
     deps = parse_package_json(package_json_path)
     print(f"Parsed {len(deps)} dependencies. Scanning each against OSV.dev...\n")
 
@@ -35,7 +29,9 @@ def run_full_scan(package_json_path):
     else:
         print(f"⚠️  Found vulnerabilities in {len(findings)} package(s):\n")
         for finding in findings:
-            print(f"- {finding['package']}@{finding['version']}: {len(finding['vulnerabilities'])} vuln(s)")
+            severity = get_highest_severity(finding["vulnerabilities"])
+            finding["severity"] = severity
+            print(f"- [{severity}] {finding['package']}@{finding['version']}: {len(finding['vulnerabilities'])} vuln(s)")
 
     return findings
 
