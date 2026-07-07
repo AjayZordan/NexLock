@@ -1,7 +1,11 @@
 import json
 import os
+from flask import Flask, request, jsonify
 from scanner import scan_dependencies
 from severity import get_highest_severity
+from alerts import send_alerts_for_findings
+
+app = Flask(__name__)
 
 
 def parse_package_json(file_path):
@@ -20,21 +24,60 @@ def parse_package_json(file_path):
 
 def run_full_scan(package_json_path):
     deps = parse_package_json(package_json_path)
-    print(f"Parsed {len(deps)} dependencies. Scanning each against OSV.dev...\n")
+    print(f"Parsed {len(deps)} dependencies. Scanning each against OSV.dev...")
 
     findings = scan_dependencies(deps)
 
-    if not findings:
-        print("No known vulnerabilities found.")
+    for finding in findings:
+        finding["severity"] = get_highest_severity(finding["vulnerabilities"])
+
+    if findings:
+        print(f"Found vulnerabilities in {len(findings)} package(s). Sending Slack alerts...")
+        send_alerts_for_findings(findings)
     else:
-        print(f"⚠️  Found vulnerabilities in {len(findings)} package(s):\n")
-        for finding in findings:
-            severity = get_highest_severity(finding["vulnerabilities"])
-            finding["severity"] = severity
-            print(f"- [{severity}] {finding['package']}@{finding['version']}: {len(finding['vulnerabilities'])} vuln(s)")
+        print("No known vulnerabilities found.")
 
     return findings
 
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "Nexlock scanner is running"})
+
+
+@app.route("/webhook/github", methods=["POST"])
+def github_webhook():
+    """
+    Receives GitHub push webhook events.
+    For now, it just triggers a scan on our own local web/package.json
+    (later this will pull the actual pushed repo's package.json).
+    """
+    payload = request.json
+    print("Received GitHub webhook event")
+
+    try:
+        findings = run_full_scan("../web/package.json")
+        return jsonify({
+            "status": "scan complete",
+            "vulnerabilities_found": len(findings)
+        }), 200
+    except Exception as e:
+        print(f"Error during scan: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/scan", methods=["GET"])
+def manual_scan():
+    """Manually trigger a scan by visiting this URL in a browser."""
+    try:
+        findings = run_full_scan("../web/package.json")
+        return jsonify({
+            "status": "scan complete",
+            "vulnerabilities_found": len(findings)
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 if __name__ == "__main__":
-    run_full_scan("../web/package.json")
+    app.run(debug=True, port=5001)
