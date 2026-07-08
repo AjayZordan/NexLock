@@ -138,11 +138,10 @@ npm run dev
 
 ## 📁 Project Structure
 nexlock/
-├── web/                 → Next.js dashboard (deployed on Vercel)
+├── web/                → Next.js dashboard (deployed on Vercel)
 ├── scanner/             → Python/Flask scanning microservice (Dockerized)
-├── .github/workflows/   → GitHub Actions CI/CD pipeline
+├── .github/workflows/    → GitHub Actions CI/CD pipeline
 └── README.md
-
 ---
 
 ## 📄 License
